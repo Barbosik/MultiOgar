@@ -20,7 +20,7 @@
 
 function BinaryReader(buffer) {
     this._offset = 0;
-    this._buffer = new Buffer(buffer);
+    this._buffer = Buffer.from(buffer);
 }
 
 module.exports = BinaryReader;
@@ -130,3 +130,4 @@ BinaryReader.prototype.readStringZeroUnicode = function () {
     this._offset += terminatorLength;
     return value;
 };
+

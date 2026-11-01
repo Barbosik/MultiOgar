@@ -24,7 +24,7 @@ function BinaryWriter(size) {
     if (!size || size <= 0) {
         size = Buffer.poolSize / 2;
     }
-    this._buffer = new Buffer(size);
+    this._buffer = Buffer.alloc(size);
     this._length = 0;
 }
 
@@ -131,7 +131,8 @@ function checkAlloc(writer, size) {
     if ((needed % chunk) > 0) {
         chunkCount += 1;
     }
-    var buffer = new Buffer(chunkCount * chunk);
+    var buffer = Buffer.alloc(chunkCount * chunk);
     writer._buffer.copy(buffer, 0, 0, writer._length);
     writer._buffer = buffer;
 };
+
