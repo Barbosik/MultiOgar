@@ -344,6 +344,7 @@ PlayerTracker.prototype.sendUpdate = function () {
     var eatNodes = [];
     var addNodes = [];
     var updNodes = [];
+    var isRainbow = this.gameServer.gameMode.ID === 20;
     var oldIndex = 0;
     var newIndex = 0;
     for (; newIndex < this.viewNodes.length && oldIndex < this.clientNodes.length;) {
@@ -362,9 +363,10 @@ PlayerTracker.prototype.sendUpdate = function () {
             continue;
         }
         var node = this.viewNodes[newIndex];
-        // skip food & eject if no moving
-        if (node.isMoving || (node.cellType != 1 && node.cellType != 3))
+        // Skip food & eject if not moving, unless it's Rainbow mode.
+        if (isRainbow || node.isMoving || (node.cellType != 1 && node.cellType != 3)) {
             updNodes.push(node);
+        }
         newIndex++;
         oldIndex++;
     }
@@ -580,3 +582,4 @@ PlayerTracker.prototype.sendCameraPacket = function () {
         this.getScale()
     ));
 };
+
