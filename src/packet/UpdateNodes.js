@@ -73,6 +73,8 @@ UpdateNodes.prototype.writeUpdateItems4 = function (writer) {
         var cellName = null;
         if (node.owner) {
             cellName = node.owner.getNameUnicode();
+        } else if (typeof node.getName === 'function') {
+            cellName = Buffer.from(node.getName() + '\0', 'ucs2');
         }
         
         // Write update record
@@ -148,6 +150,8 @@ UpdateNodes.prototype.writeUpdateItems5 = function (writer) {
         if (node.owner) {
             skinName = node.owner.getSkinUtf8();
             cellName = node.owner.getNameUnicode();
+        } else if (typeof node.getName === 'function') {
+            cellName = Buffer.from(node.getName() + '\0', 'ucs2');
         }
         
         // Write update record
@@ -233,6 +237,8 @@ UpdateNodes.prototype.writeUpdateItems6 = function (writer) {
         if (node.owner) {
             skinName = node.owner.getSkinUtf8();
             cellName = node.owner.getNameUtf8();
+        } else if (typeof node.getName === 'function') {
+            cellName = Buffer.from(node.getName() + '\0', 'utf8');
         }
         
         // Write update record

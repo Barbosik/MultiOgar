@@ -414,9 +414,9 @@ GameServer.prototype.getRandomColor = function () {
     // hsv to rgb    
     var rgb = { r: v, g: v, b: v };    // achromatic (grey)
     if (s > 0) {
-        h /= 60;			           // sector 0 to 5
+        h /= 60;                       // sector 0 to 5
         var i = Math.floor(h) >> 0;
-        var f = h - i;			       // factorial part of h
+        var f = h - i;                   // factorial part of h
         var p = v * (1 - s);
         var q = v * (1 - s * f);
         var t = v * (1 - s * (1 - f));
@@ -864,8 +864,8 @@ GameServer.prototype.checkRigidCollision = function (manifold) {
         return false;
     if (manifold.cell1.owner != manifold.cell2.owner) {
         // Different owners
-        return this.gameMode.haveTeams && 
-            manifold.cell1.owner.getTeam() == manifold.cell2.owner.getTeam();
+        return this.gameMode.isRigidCollision(manifold, this) ||
+            (this.gameMode.haveTeams && manifold.cell1.owner.getTeam() == manifold.cell2.owner.getTeam());
     }
     // The same owner
     if (manifold.cell1.owner.mergeOverride)
@@ -928,7 +928,7 @@ GameServer.prototype.resolveCollision = function (manifold) {
             return;
         }
     }
-    if (!maxCell.canEat(minCell)) {
+    if (!maxCell.canEat(minCell) || !this.gameMode.canEat(maxCell, minCell, this)) {
         // maxCell don't want to eat
         return;
     }
@@ -1884,3 +1884,4 @@ function trackerRequest(options, type, body) {
     req.write(body);
     req.end()
 };
+
