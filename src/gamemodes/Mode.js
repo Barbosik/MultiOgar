@@ -43,6 +43,10 @@ Mode.prototype.onCellRemove = function (cell) {
     // Called when a player cell is removed
 };
 
+Mode.prototype.onCellCollision = function (manifold, gameServer) {
+    // Called for overlaps involving a player cell, before collision classification
+};
+
 Mode.prototype.onCellMove = function (cell, gameServer) {
     // Called when a player cell is moved
 };

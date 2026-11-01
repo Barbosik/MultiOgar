@@ -39,23 +39,54 @@ Zombie.prototype.leaderboardAddSort = function (player, leaderboard) {
 };
 
 Zombie.prototype.makeZombie = function (player) {
-    // turns a player into a zombie
+    if (player.getTeam() === 0) {
+        return;
+    }
+
     player.team = 0;
     player.setColor(this.zombieColor);
+
+    // Move every cell from the human list to the zombie list.
     for (var i = 0; i < player.cells.length; i++) {
-        // remove cell from players array
-        var index = this.players.indexOf(player.cells[i]);
+        var cell = player.cells[i];
+        var index = this.players.indexOf(cell);
         if (index != -1) {
             this.players.splice(index, 1);
         }
-        // change color of cell
-        player.cells[i].setColor(this.zombieColor);
-        // add cell to zombie array
-        this.zombies.push(player.cells[i]);
+        cell.setColor(this.zombieColor);
+        this.zombies.push(cell);
     }
 };
 
 // Override
+
+Zombie.prototype.onServerInit = function (gameServer) {
+    gameServer.run = true;
+    this.zombies = [];
+    this.players = [];
+
+    var initialZombie = null;
+    for (var i = 0; i < gameServer.clients.length; i++) {
+        var player = gameServer.clients[i].playerTracker;
+        player.team = player.pID;
+        player.setColor(gameServer.getRandomColor());
+
+        for (var j = 0; j < player.cells.length; j++) {
+            var cell = player.cells[j];
+            cell.setColor(player.getColor());
+            this.onCellAdd(cell);
+        }
+
+        if (initialZombie === null && player.cells.length > 0) {
+            initialZombie = player;
+        }
+    }
+
+    // Spectators do not count when selecting the initial zombie.
+    if (initialZombie !== null) {
+        this.makeZombie(initialZombie);
+    }
+};
 
 Zombie.prototype.onPlayerSpawn = function (gameServer, player) {
     // make player a zombie if there are none
@@ -96,55 +127,36 @@ Zombie.prototype.onCellRemove = function (cell) {
     }
 };
 
-// TODO: remove it (move physics is managed by GameServer)
-Zombie.prototype.onCellMove = function (x1, y1, cell) {
-    var team = cell.owner.getTeam();
-    var r = cell.getSize();
-    
-    // Find team
-    for (var i = 0; i < cell.owner.visibleNodes.length; i++) {
-        // Only collide with player cells
-        var check = cell.owner.visibleNodes[i];
-        
-        if ((check.getType() != 0) || (cell.owner == check.owner)) {
-            continue;
-        }
-        
-        // Collision with zombies
-        if (check.owner.getTeam() == team || check.owner.getTeam() == 0 || team == 0) {
-            // Check if in collision range
-            var collisionDist = check.getSize() + r; // Minimum distance between the 2 cells
-            if (!cell.simpleCollide(x1, y1, check, collisionDist)) {
-                // Skip
-                continue;
-            }
-            
-            // First collision check passed... now more precise checking
-            dist = cell.getDist(cell.position.x, cell.position.y, check.position.x, check.position.y);
-            
-            // Calculations
-            if (dist < collisionDist) { // Collided
-                if (check.owner.getTeam() == 0 && team != 0) {
-                    // turn player into zombie
-                    this.makeZombie(cell.owner);
-                } else if (team == 0 && check.owner.getTeam() != 0) {
-                    // turn other player into zombie
-                    this.makeZombie(check.owner);
-                }
-                // The moving cell pushes the colliding cell
-                var newDeltaY = check.position.y - y1;
-                var newDeltaX = check.position.x - x1;
-                var newAngle = Math.atan2(newDeltaX, newDeltaY);
-                
-                var move = collisionDist - dist;
-                
-                check.setPosition({
-                    x: check.position.x + (move * Math.sin(newAngle)) >> 0,
-                    y: check.position.y + (move * Math.cos(newAngle)) >> 0
-                });
-            }
-        }
+Zombie.prototype.onCellCollision = function (manifold) {
+    var cell1 = manifold.cell1;
+    var cell2 = manifold.cell2;
+    if (cell1.isRemoved || cell2.isRemoved) {
+        return;
     }
+    if (cell1.cellType !== 0 || cell2.cellType !== 0) {
+        return;
+    }
+
+    var player1 = cell1.owner;
+    var player2 = cell2.owner;
+    if (player1 === player2) {
+        return;
+    }
+
+    var firstIsZombie = player1.getTeam() === 0;
+    var secondIsZombie = player2.getTeam() === 0;
+    if (firstIsZombie === secondIsZombie) {
+        return;
+    }
+
+    var zombieCell = firstIsZombie ? cell1 : cell2;
+    var humanCell = firstIsZombie ? cell2 : cell1;
+    // Let eligible humans approach and eat zombies using the normal collision rules.
+    if (humanCell.getSize() > zombieCell.getSize() * 1.15 && humanCell.canEat(zombieCell)) {
+        return;
+    }
+
+    this.makeZombie(humanCell.owner);
 };
 
 Zombie.prototype.updateLB = function (gameServer) {
@@ -179,3 +191,4 @@ Zombie.prototype.updateLB = function (gameServer) {
     
     this.rankOne = lb[0];
 };
+

@@ -1026,6 +1026,8 @@ GameServer.prototype.updateMoveEngine = function () {
                 if (cell2 == cell1) return;
                 var manifold = self.checkCellCollision(cell1, cell2);
                 if (manifold == null) return;
+                // Let game modes update teams before classifying the collision.
+                self.gameMode.onCellCollision(manifold, self);
                 if (self.checkRigidCollision(manifold))
                     rigidCollisions.push({ cell1: cell1, cell2: cell2 });
                 else
