@@ -1,5 +1,7 @@
 ﻿var Tournament = require('./Tournament');
 var Entity = require('../entity');
+var QuadNode = require('quad-node');
+var Packet = require('../packet');
 
 function HungerGames() {
     Tournament.apply(this, Array.prototype.slice.call(arguments));
@@ -51,7 +53,7 @@ function HungerGames() {
         } // Bottom
     ];
     this.contenderSpawnPoints;
-    this.borderDec = 100; // Border shrinks by this size everytime someone dies
+    this.borderDec = 200; // Border shrinks by this size everytime someone dies
 }
 
 module.exports = HungerGames;
@@ -59,10 +61,10 @@ HungerGames.prototype = new Tournament();
 
 // Gamemode Specific Functions
 
-HungerGames.prototype.getPos = function () {
+HungerGames.prototype.getPos = function (gameServer, player) {
     var pos = {
-        x: 0,
-        y: 0
+        x: 3200,
+        y: 3200
     };
     
     // Random Position
@@ -70,29 +72,43 @@ HungerGames.prototype.getPos = function () {
         var index = Math.floor(Math.random() * this.contenderSpawnPoints.length);
         pos = this.contenderSpawnPoints[index];
         this.contenderSpawnPoints.splice(index, 1);
+        player.hungerGamesSpawnPoint = pos;
     }
     
     return {
-        x: pos.x,
-        y: pos.y
+        // The original spawn layout uses coordinates from 0 to 6400.
+        x: gameServer.border.minx + pos.x / 6400 * gameServer.border.width,
+        y: gameServer.border.miny + pos.y / 6400 * gameServer.border.height
     };
 };
 
 HungerGames.prototype.spawnFood = function (gameServer, mass, pos) {
+    pos = { x: gameServer.border.minx + pos.x, y: gameServer.border.miny + pos.y };
     var cell = new Entity.Food(gameServer, null, pos, mass);
     cell.setColor(gameServer.getRandomColor());
     gameServer.addNode(cell);
 };
 
 HungerGames.prototype.spawnVirus = function (gameServer, pos) {
+    pos = { x: gameServer.border.minx + pos.x, y: gameServer.border.miny + pos.y };
     var v = new Entity.Virus(gameServer, null, pos, gameServer.config.virusMinSize);
     gameServer.addNode(v);
 };
 
 HungerGames.prototype.onPlayerDeath = function (gameServer) {
+    if (this.gamePhase != 2) {
+        return;
+    }
     gameServer.setBorder(
         gameServer.border.width - this.borderDec * 2, 
         gameServer.border.height - this.borderDec * 2);
+
+    if (gameServer.config.serverScrambleLevel < 2) {
+        for (var i = 0; i < gameServer.clients.length; i++) {
+            var player = gameServer.clients[i].playerTracker;
+            player.socket.sendPacket(new Packet.SetBorder(player, gameServer.border));
+        }
+    }
     
     // Remove all cells
     var len = gameServer.nodes.length;
@@ -124,10 +140,12 @@ HungerGames.prototype.onPlayerDeath = function (gameServer) {
 
 HungerGames.prototype.onServerInit = function (gameServer) {
     // Prepare
+    gameServer.config.playerDisconnectTime = 10; // Do not let disconnected players stall the match
     this.prepare(gameServer);
     
     // Resets spawn points
     this.contenderSpawnPoints = this.baseSpawnPoints.slice();
+    this.maxContenders = Math.min(this.maxContenders, this.contenderSpawnPoints.length);
     
     // Override config values
     if (gameServer.config.serverBots > this.maxContenders) {
@@ -135,16 +153,17 @@ HungerGames.prototype.onServerInit = function (gameServer) {
         gameServer.config.serverBots = this.maxContenders;
     }
     gameServer.config.spawnInterval = 20;
-    gameServer.config.borderWidth = 3200;
-    gameServer.config.borderHeight = 3200;
-    gameServer.config.foodSpawnAmount = 5; // This is hunger games
-    gameServer.config.foodMinAmount = 100;
-    gameServer.config.foodMaxAmount = 200;
+    gameServer.config.borderWidth = 6400;
+    gameServer.config.borderHeight = 6400;
+    gameServer.setBorder(gameServer.config.borderWidth, gameServer.config.borderHeight);
+    gameServer.quadTree = new QuadNode(gameServer.border, 64, 32);
+    gameServer.config.foodSpawnAmount = 20; // This is hunger games
+    gameServer.config.foodMinAmount = 400;
+    gameServer.config.foodMaxAmount = 800;
     gameServer.config.foodMinSize = 10; // Food is scarce, but its worth more
     gameServer.config.virusMinAmount = 10; // We need to spawn some viruses in case someone eats them all
     gameServer.config.virusMaxAmount = 100;
     gameServer.config.ejectSpawnPlayer = 0;
-    gameServer.config.playerDisconnectTime = 10; // So that people dont disconnect and stall the game for too long
     
     // Spawn Initial Virus/Large food
     var mapWidth = gameServer.border.width;
@@ -288,11 +307,14 @@ HungerGames.prototype.onServerInit = function (gameServer) {
 };
 
 HungerGames.prototype.onPlayerSpawn = function (gameServer, player) {
+    if (!player.socket._socket && !this.hasEnoughPlayers()) {
+        return;
+    }
     // Only spawn players if the game hasnt started yet
     if ((this.gamePhase == 0) && (this.contenders.length < this.maxContenders)) {
         player.setColor(gameServer.getRandomColor()); // Random color
         this.contenders.push(player); // Add to contenders list
-        gameServer.spawnPlayer(player, this.getPos());
+        gameServer.spawnPlayer(player, this.getPos(gameServer, player));
         
         if (this.contenders.length == this.maxContenders) {
             // Start the game once there is enough players
@@ -300,3 +322,15 @@ HungerGames.prototype.onPlayerSpawn = function (gameServer, player) {
         }
     }
 };
+
+HungerGames.prototype.onCellRemove = function (cell) {
+    var owner = cell.owner;
+    if (owner.cells.length == 0 && owner.hungerGamesSpawnPoint) {
+        if (this.gamePhase == 0 || this.gamePhase == 1) {
+            this.contenderSpawnPoints.push(owner.hungerGamesSpawnPoint);
+        }
+        owner.hungerGamesSpawnPoint = null;
+    }
+    Tournament.prototype.onCellRemove.call(this, cell);
+};
+
