@@ -240,7 +240,7 @@ GameServer.prototype.onServerSocketError = function (error) {
     process.exit(1); // Exits the program
 };
 
-GameServer.prototype.onClientSocketOpen = function (ws) {
+GameServer.prototype.onClientSocketOpen = function (ws, req) {
     var logip = ws._socket.remoteAddress + ":" + ws._socket.remotePort;
     ws.on('error', function (err) {
         Logger.writeError("[" + logip + "] " + err.stack);
@@ -270,7 +270,8 @@ GameServer.prototype.onClientSocketOpen = function (ws) {
     ws.remoteAddress = ws._socket.remoteAddress;
     ws.remotePort = ws._socket.remotePort;
     ws.lastAliveTime = Date.now();
-    Logger.write("CONNECTED    " + ws.remoteAddress + ":" + ws.remotePort + ", origin: \"" + ws.upgradeReq.headers.origin + "\"");
+    var origin = req && req.headers ? req.headers.origin : undefined;
+    Logger.write("CONNECTED    " + ws.remoteAddress + ":" + ws.remotePort + ", origin: \"" + origin + "\"");
     
     ws.playerTracker = new PlayerTracker(this, ws);
     ws.packetHandler = new PacketHandler(this, ws);
