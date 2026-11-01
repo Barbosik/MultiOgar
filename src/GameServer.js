@@ -690,9 +690,8 @@ GameServer.prototype.mainLoop = function () {
         this.pingServerTracker();
     }
     
-    if (this.run) {
-        this.tickCounter++;
-    }
+    // Keep network cooldowns and tournament timers running while gameplay is paused.
+    this.tickCounter++;
     var tEnd = process.hrtime(tStart);
     this.updateTime = tEnd[0] * 1000 + tEnd[1] / 1000000;
 };
