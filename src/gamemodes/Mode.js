@@ -43,6 +43,20 @@ Mode.prototype.onCellRemove = function (cell) {
     // Called when a player cell is removed
 };
 
+Mode.prototype.onCellCollision = function (manifold, gameServer) {
+    // Called for overlaps involving a player cell, before collision classification
+};
+
+Mode.prototype.isRigidCollision = function (manifold, gameServer) {
+    // Additional rigid collisions between different players.
+    return false;
+};
+
+Mode.prototype.canEat = function (cell, prey, gameServer) {
+    // Mode-specific restrictions in addition to the normal eating rules.
+    return true;
+};
+
 Mode.prototype.onCellMove = function (cell, gameServer) {
     // Called when a player cell is moved
 };
@@ -51,3 +65,4 @@ Mode.prototype.updateLB = function (gameServer) {
     gameServer.leaderboardType = this.packetLB;
     // Called when the leaderboard update function is called
 };
+

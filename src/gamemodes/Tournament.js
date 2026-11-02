@@ -7,7 +7,7 @@ function Tournament() {
     this.name = "Tournament";
     this.packetLB = 48;
     
-    // Config (1 tick = 1000 ms)
+    // Round timers advance in updateLB once per second, not on every physics tick.
     this.prepTime = 5; // Amount of ticks after the server fills up to wait until starting the game
     this.endTime = 15; // Amount of ticks after someone wins to restart the game
     this.autoFill = false;
@@ -15,7 +15,7 @@ function Tournament() {
     this.dcTime = 0;
     
     // Gamemode Specific Variables
-    this.gamePhase = 0; // 0 = Waiting for players, 1 = Prepare to start, 2 = Game in progress, 3 = End
+    this.gamePhase = 0; // 0 = Waiting, 1 = Preparing, 2 = Playing, 3 = Winner, 4 = Timed out
     this.contenders = [];
     this.maxContenders = 12;
     
@@ -29,12 +29,30 @@ Tournament.prototype = new Mode();
 
 // Gamemode Specific Functions
 
+Tournament.prototype.countHumanPlayers = function () {
+    return this.contenders.filter(function (player) {
+        return player.socket && player.socket._socket && player.socket.isConnected;
+    }).length;
+};
+
+Tournament.prototype.hasEnoughPlayers = function () {
+    return this.countHumanPlayers() >= Math.max(1, this.autoFillPlayers);
+};
+
 Tournament.prototype.startGamePrep = function (gameServer) {
+    if (!this.hasEnoughPlayers()) {
+        return;
+    }
     this.gamePhase = 1;
-    this.timer = this.prepTime; // 10 seconds
+    this.timer = this.prepTime; // Configured preparation countdown, in seconds
 };
 
 Tournament.prototype.startGame = function (gameServer) {
+    if (!this.hasEnoughPlayers()) {
+        this.gamePhase = 0;
+        this.timer = gameServer.config.tourneyAutoFill;
+        return;
+    }
     gameServer.run = true;
     this.gamePhase = 2;
     this.getSpectate(); // Gets a random person to spectate
@@ -42,18 +60,25 @@ Tournament.prototype.startGame = function (gameServer) {
 };
 
 Tournament.prototype.endGame = function (gameServer) {
-    this.winner = this.contenders[0];
+    this.winner = this.contenders.reduce(
+        (winner, contender) =>
+            contender.getScore() > winner.getScore() ? contender : winner,
+        this.contenders[0]
+    );
     this.gamePhase = 3;
-    this.timer = this.endTime; // 30 Seconds
+    this.timer = this.endTime; // Configured restart countdown, in seconds
 };
 
 Tournament.prototype.endGameTimeout = function (gameServer) {
     gameServer.run = false;
     this.gamePhase = 4;
-    this.timer = this.endTime; // 30 Seconds
+    this.timer = this.endTime; // Configured restart countdown, in seconds
 };
 
 Tournament.prototype.fillBots = function (gameServer) {
+    if (!this.hasEnoughPlayers()) {
+        return;
+    }
     // Fills the server with bots if there arent enough players
     var fill = this.maxContenders - this.contenders.length;
     for (var i = 0; i < fill; i++) {
@@ -85,13 +110,14 @@ Tournament.prototype.prepare = function (gameServer) {
     // Pauses the server
     gameServer.run = false;
     this.gamePhase = 0;
+    this.contenders = [];
+    this.winner = null;
+    this.rankOne = null;
     
     // Get config values
-    if (gameServer.config.tourneyAutoFill > 0) {
-        this.timer = gameServer.config.tourneyAutoFill;
-        this.autoFill = true;
-        this.autoFillPlayers = gameServer.config.tourneyAutoFillPlayers;
-    }
+    this.timer = gameServer.config.tourneyAutoFill;
+    this.autoFill = this.timer > 0;
+    this.autoFillPlayers = gameServer.config.tourneyAutoFillPlayers;
     // Handles disconnections
     this.dcTime = gameServer.config.playerDisconnectTime;
     gameServer.config.playerDisconnectTime = 0;
@@ -126,6 +152,10 @@ Tournament.prototype.onServerInit = function (gameServer) {
 };
 
 Tournament.prototype.onPlayerSpawn = function (gameServer, player) {
+    // Bots from the previous round must not fill the lobby before humans join.
+    if (!player.socket._socket && !this.hasEnoughPlayers()) {
+        return;
+    }
     // Only spawn players if the game hasnt started yet
     if ((this.gamePhase == 0) && (this.contenders.length < this.maxContenders)) {
         player.setColor(gameServer.getRandomColor()); // Random color
@@ -183,15 +213,25 @@ Tournament.prototype.updateLB = function (gameServer) {
             lb[0] = "Waiting for";
             lb[1] = "players: ";
             lb[2] = this.contenders.length + "/" + this.maxContenders;
-            if (this.autoFill) {
+            if (!this.hasEnoughPlayers()) {
+                this.timer = gameServer.config.tourneyAutoFill;
+            } else if (this.contenders.length == this.maxContenders) {
+                this.startGamePrep(gameServer);
+            } else if (this.autoFill) {
                 if (this.timer <= 0) {
                     this.fillBots(gameServer);
-                } else if (this.contenders.length >= this.autoFillPlayers) {
+                } else {
                     this.timer--;
                 }
             }
             break;
         case 1:
+            if (!this.hasEnoughPlayers()) {
+                this.gamePhase = 0;
+                this.timer = gameServer.config.tourneyAutoFill;
+                this.updateLB(gameServer);
+                return;
+            }
             lb[0] = "Game starting in";
             lb[1] = this.timer.toString();
             lb[2] = "Good luck!";
@@ -246,3 +286,4 @@ Tournament.prototype.updateLB = function (gameServer) {
             break;
     }
 };
+

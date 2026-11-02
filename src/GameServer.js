@@ -240,7 +240,7 @@ GameServer.prototype.onServerSocketError = function (error) {
     process.exit(1); // Exits the program
 };
 
-GameServer.prototype.onClientSocketOpen = function (ws) {
+GameServer.prototype.onClientSocketOpen = function (ws, req) {
     var logip = ws._socket.remoteAddress + ":" + ws._socket.remotePort;
     ws.on('error', function (err) {
         Logger.writeError("[" + logip + "] " + err.stack);
@@ -270,7 +270,8 @@ GameServer.prototype.onClientSocketOpen = function (ws) {
     ws.remoteAddress = ws._socket.remoteAddress;
     ws.remotePort = ws._socket.remotePort;
     ws.lastAliveTime = Date.now();
-    Logger.write("CONNECTED    " + ws.remoteAddress + ":" + ws.remotePort + ", origin: \"" + ws.upgradeReq.headers.origin + "\"");
+    var origin = req && req.headers ? req.headers.origin : undefined;
+    Logger.write("CONNECTED    " + ws.remoteAddress + ":" + ws.remotePort + ", origin: \"" + origin + "\"");
     
     ws.playerTracker = new PlayerTracker(this, ws);
     ws.packetHandler = new PacketHandler(this, ws);
@@ -413,9 +414,9 @@ GameServer.prototype.getRandomColor = function () {
     // hsv to rgb    
     var rgb = { r: v, g: v, b: v };    // achromatic (grey)
     if (s > 0) {
-        h /= 60;			           // sector 0 to 5
+        h /= 60;                       // sector 0 to 5
         var i = Math.floor(h) >> 0;
-        var f = h - i;			       // factorial part of h
+        var f = h - i;                   // factorial part of h
         var p = v * (1 - s);
         var q = v * (1 - s * f);
         var t = v * (1 - s * (1 - f));
@@ -689,9 +690,8 @@ GameServer.prototype.mainLoop = function () {
         this.pingServerTracker();
     }
     
-    if (this.run) {
-        this.tickCounter++;
-    }
+    // Keep network cooldowns and tournament timers running while gameplay is paused.
+    this.tickCounter++;
     var tEnd = process.hrtime(tStart);
     this.updateTime = tEnd[0] * 1000 + tEnd[1] / 1000000;
 };
@@ -864,8 +864,8 @@ GameServer.prototype.checkRigidCollision = function (manifold) {
         return false;
     if (manifold.cell1.owner != manifold.cell2.owner) {
         // Different owners
-        return this.gameMode.haveTeams && 
-            manifold.cell1.owner.getTeam() == manifold.cell2.owner.getTeam();
+        return this.gameMode.isRigidCollision(manifold, this) ||
+            (this.gameMode.haveTeams && manifold.cell1.owner.getTeam() == manifold.cell2.owner.getTeam());
     }
     // The same owner
     if (manifold.cell1.owner.mergeOverride)
@@ -928,7 +928,7 @@ GameServer.prototype.resolveCollision = function (manifold) {
             return;
         }
     }
-    if (!maxCell.canEat(minCell)) {
+    if (!maxCell.canEat(minCell) || !this.gameMode.canEat(maxCell, minCell, this)) {
         // maxCell don't want to eat
         return;
     }
@@ -1026,6 +1026,8 @@ GameServer.prototype.updateMoveEngine = function () {
                 if (cell2 == cell1) return;
                 var manifold = self.checkCellCollision(cell1, cell2);
                 if (manifold == null) return;
+                // Let game modes update teams before classifying the collision.
+                self.gameMode.onCellCollision(manifold, self);
                 if (self.checkRigidCollision(manifold))
                     rigidCollisions.push({ cell1: cell1, cell2: cell2 });
                 else
@@ -1882,3 +1884,4 @@ function trackerRequest(options, type, body) {
     req.write(body);
     req.end()
 };
+

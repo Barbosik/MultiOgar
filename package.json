@@ -1,6 +1,6 @@
 ﻿{
     "name": "MultiOgar",
-    "version": "1.2.69",
+    "version": "1.2.70",
     "description": "Open source Ogar server",
     "author": "Barbosik (https://github.com/Barbosik/MultiOgar)",
     "homepage": "https://github.com/Barbosik/MultiOgar",
@@ -23,3 +23,4 @@
         "url": "https://github.com/Barbosik/MultiOgar/issues"
     }
 }
+

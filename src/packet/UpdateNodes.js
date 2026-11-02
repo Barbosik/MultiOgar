@@ -73,6 +73,8 @@ UpdateNodes.prototype.writeUpdateItems4 = function (writer) {
         var cellName = null;
         if (node.owner) {
             cellName = node.owner.getNameUnicode();
+        } else if (typeof node.getName === 'function') {
+            cellName = Buffer.from(node.getName() + '\0', 'ucs2');
         }
         
         // Write update record
@@ -148,6 +150,8 @@ UpdateNodes.prototype.writeUpdateItems5 = function (writer) {
         if (node.owner) {
             skinName = node.owner.getSkinUtf8();
             cellName = node.owner.getNameUnicode();
+        } else if (typeof node.getName === 'function') {
+            cellName = Buffer.from(node.getName() + '\0', 'ucs2');
         }
         
         // Write update record
@@ -187,6 +191,7 @@ UpdateNodes.prototype.writeUpdateItems6 = function (writer) {
     var scrambleX = this.playerTracker.scrambleX;
     var scrambleY = this.playerTracker.scrambleY;
     var scrambleId = this.playerTracker.scrambleId;
+    var isRainbow = this.playerTracker.gameServer.gameMode.ID == 20;
     for (var i = 0; i < this.updNodes.length; i++) {
         var node = this.updNodes[i];
         if (node.nodeId == 0)
@@ -204,8 +209,9 @@ UpdateNodes.prototype.writeUpdateItems6 = function (writer) {
         var flags = 0;
         if (node.isSpiked)
             flags |= 0x01;      // isVirus
-        if (node.cellType == 0)
-            flags |= 0x02;      // isColorPresent (for players only)
+        if (node.cellType == 0 || isRainbow) {
+            flags |= 0x02;      // isColorPresent (players in every mode; isRainbow also includes non-player color changes)
+        }
         if (node.isAgitated)
             flags |= 0x10;      // isAgitated
         if (node.cellType == 3)
@@ -231,6 +237,8 @@ UpdateNodes.prototype.writeUpdateItems6 = function (writer) {
         if (node.owner) {
             skinName = node.owner.getSkinUtf8();
             cellName = node.owner.getNameUtf8();
+        } else if (typeof node.getName === 'function') {
+            cellName = Buffer.from(node.getName() + '\0', 'utf8');
         }
         
         // Write update record
@@ -300,3 +308,4 @@ UpdateNodes.prototype.writeRemoveItems = function (writer, protocol) {
         writer.writeUInt32((node.nodeId ^ scrambleId) >>> 0);                // Cell ID
     }
 };
+

@@ -1,7 +1,7 @@
 ﻿# MultiOgar
 Ogar game server with fast and smooth vanilla physics and multi-protocol support.
 
-Current version: **1.2.69**
+Current version: **1.2.70**
 
 ## Project Info
 ![Language](https://img.shields.io/badge/language-node.js-yellow.svg)
@@ -81,6 +81,66 @@ sudo node index.js
 ```
 
 
+## Gamemodes
+
+Set `serverGamemode` in `gameserver.ini` before starting the server. When using
+the `cd src` instructions above, edit `src/gameserver.ini`; configuration is loaded
+from the server's working directory.
+
+ID | Mode | Description
+--- | --- | ---
+0 | FFA | Standard free-for-all
+1 | Teams | Three-team gameplay
+2 | Experimental | FFA with mother cells
+10 | Tournament | Elimination rounds with optional bot autofill
+11 | HungerGames | Tournament rounds with fixed spawn points and a shrinking 6400x6400 arena
+12 | Zombie FFA | Contact infects humans unless their contacting cell can eat the zombie
+13 | Zombie Team (TeamZ) | Infection rounds with HERO and BRAIN power-ups
+14 | Experimental Team (TeamX) | Three teams, mother cells and feed-pushable viruses
+20 | Rainbow FFA | Animated colors for players, food, viruses and ejected mass
+
+### Tournament and HungerGames
+
+Both modes require connected human contenders before starting or filling empty
+slots with bots. The preparation countdown is cancelled if the human minimum is lost.
+
+Setting | Meaning
+--- | ---
+`tourneyMaxPlayers` | Number of contender slots; HungerGames is capped at its 12 spawn points
+`tourneyPrepTime` | Preparation countdown in seconds
+`tourneyEndTime` | Delay before restarting a finished round, in seconds
+`tourneyTimeLimit` | Round time limit in minutes
+`tourneyAutoFill` | Delay before filling empty slots with bots, in seconds; `0` disables autofill
+`tourneyAutoFillPlayers` | Minimum connected human contenders required; at least one human is always required
+
+HungerGames overrides arena, food and virus settings for its map, and removes
+disconnected contenders after 10 seconds during a round.
+
+### Zombie Team (TeamZ)
+
+* Two living participants, including bots, trigger a 30-second warm-up. One becomes
+  the initial zombie; humans have individual teams and can eat one another.
+* Unprotected human/zombie contact starts a 15-second infection countdown and doubles
+  the human's movement speed. Without a cure, the human becomes a zombie.
+* Yellow **HERO** cells are human-only: cure a pending infection, or grant an
+  uninfected human 50 seconds of protection. A cure prevents conversion when the
+  current countdown ends; size and overlap requirements for eating still apply.
+* Pink **BRAIN** cells are zombie-only and grant double movement speed for 10 seconds.
+* Humans win by surviving 15 minutes or eliminating all zombies. Zombies win when
+  no humans remain. Late joiners and respawning players become zombies during a round.
+
+### Experimental Team (TeamX)
+
+Players join red, green or blue teams; teammates cannot eat each other. The mode
+maintains a target of five mother cells, which grow, consume smaller players and
+ejected mass, and release excess mass as food. Eating a mother cell uses the normal
+virus-splitting rules. Feeding green viruses pushes them instead of growing them
+and shooting another virus.
+
+Mode-specific settings such as TeamX's `pushVirus` and TeamZ's effect durations are
+defined in `src/gamemodes/TeamX.js` and `src/gamemodes/TeamZ.js`, not in `gameserver.ini`.
+Set `pushVirus` to `false` in TeamX to restore normal virus feeding.
+
 ## Clients
 
 This lists Ogar clients and server trackers that I found on internet.
@@ -126,6 +186,7 @@ vps.simonorj.com:24270 | Montreal | Instant Merge | https://redd.it/4mufge
 
 
 ## What's new:
+* 1.2.70: Repaired Tournament, HungerGames and zombie/team modes; fixed Rainbow colors, modern ws connection handling and deprecated Buffer usage.
 * 1.2.47: Improved stability and performance; added mute/unmute command
 * Added support for secure websocket connections (TLS)
 * Fixed mass decay
